@@ -1,4 +1,3 @@
-Futbol Analiz Merkezi
 
 Futbol maçlarını analiz eden ve Monte Carlo simülasyonuyla olası sonuçları hesaplayan bir web uygulaması.
 
