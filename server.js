@@ -1,15 +1,20 @@
 const express = require("express");
 const path = require("path");
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.FOOTBALL_DATA_TOKEN;
-
 const SPORTSDB_URL = "https://www.thesportsdb.com/api/v1/json/123";
-
+const SUPER_LEAGUE_ID = 4339;
+const SUPER_LEAGUE_SEASONS = [
+  "2023-2024",
+  "2024-2025",
+  "2025-2026",
+  "2026-2027"
+];
+const CACHE_TTL = 15 * 60 * 1000;
+const cache = new Map();
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
-
 async function footballApi(pathname) {
   if (!TOKEN) {
     const error = new Error(
@@ -18,7 +23,6 @@ async function footballApi(pathname) {
     error.status = 503;
     throw error;
   }
-
   const response = await fetch(
     "https://api.football-data.org/v4" + pathname,
     {
@@ -27,41 +31,140 @@ async function footballApi(pathname) {
       }
     }
   );
-
   if (!response.ok) {
     const messages = {
       400: "Gecersiz istek. Lig kodunu kontrol edin.",
       403: "Bu lig mevcut API planinizda desteklenmiyor olabilir.",
       429: "API istek sinirina ulasildi. Biraz bekleyin."
     };
-
     const error = new Error(
       messages[response.status] ||
       ("Veri saglayicisi hata dondurdu: " + response.status)
     );
-
     error.status = response.status;
     throw error;
   }
-
   return response.json();
 }
-
 async function sportsDbApi(pathname) {
   const response = await fetch(SPORTSDB_URL + pathname);
-
   if (!response.ok) {
     const error = new Error(
       "Super Lig veri kaynagi hata dondurdu: " + response.status
     );
-
     error.status = response.status;
     throw error;
   }
-
   return response.json();
 }
-
+function cached(key) {
+  const item = cache.get(key);
+  if (!item) return null;
+  if (Date.now() - item.time > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  return item.value;
+}
+function saveCache(key, value) {
+  cache.set(key, {
+    time: Date.now(),
+    value: value
+  });
+}
+function normalizeSuperLeagueMatch(match, season) {
+  return {
+    id: match.idEvent || null,
+    date: match.strTimestamp || match.dateEvent || null,
+    status: match.strStatus || "SCHEDULED",
+    home: match.strHomeTeam || null,
+    away: match.strAwayTeam || null,
+    homeId: match.idHomeTeam || null,
+    awayId: match.idAwayTeam || null,
+    homeGoals:
+      match.intHomeScore == null ||
+      match.intHomeScore === ""
+        ? null
+        : Number(match.intHomeScore),
+    awayGoals:
+      match.intAwayScore == null ||
+      match.intAwayScore === ""
+        ? null
+        : Number(match.intAwayScore),
+    season: season
+  };
+}
+async function getSuperLeagueMatches() {
+  const key = "super-league-all-seasons";
+  const existing = cached(key);
+  if (existing) return existing;
+  const results = await Promise.all(
+    SUPER_LEAGUE_SEASONS.map(async function (season) {
+      try {
+        const data = await sportsDbApi(
+          "/eventsseason.php?id=" +
+          SUPER_LEAGUE_ID +
+          "&s=" +
+          encodeURIComponent(season)
+        );
+        return {
+          season: season,
+          matches: (data.events || []).map(function (match) {
+            return normalizeSuperLeagueMatch(match, season);
+          }),
+          error: null
+        };
+      } catch (error) {
+        return {
+          season: season,
+          matches: [],
+          error: error.message
+        };
+      }
+    })
+  );
+  const allMatches = [];
+  const seen = new Set();
+  for (const result of results) {
+    for (const match of result.matches) {
+      const keyParts = [
+        match.id,
+        match.date,
+        match.home,
+        match.away
+      ];
+      const uniqueKey = match.id
+        ? String(match.id)
+        : keyParts.join("|");
+      if (seen.has(uniqueKey)) continue;
+      seen.add(uniqueKey);
+      allMatches.push(match);
+    }
+  }
+  allMatches.sort(function (a, b) {
+    return new Date(a.date || 0) - new Date(b.date || 0);
+  });
+  const response = {
+    competition: "Turkiye Super Ligi",
+    seasons: results.map(function (item) {
+      return {
+        season: item.season,
+        matchCount: item.matches.length,
+        error: item.error
+      };
+    }),
+    matches: allMatches,
+    source: "TheSportsDB",
+    warning:
+      results.some(function (item) {
+        return Boolean(item.error);
+      })
+        ? "Bazi sezonlar yuklenemedi. Veri kaynagi veya istek siniri kontrol edilmeli."
+        : "Veriler birden fazla sezondan birlestirildi. Kaynakta eksik maclar bulunabilir."
+  };
+  saveCache(key, response);
+  return response;
+}
 app.get("/api/status", function (_req, res) {
   res.json({
     connected: Boolean(TOKEN),
@@ -69,14 +172,11 @@ app.get("/api/status", function (_req, res) {
     note: "API anahtari sunucuda saklanir."
   });
 });
-
 app.get("/api/competitions", async function (_req, res) {
   try {
     let competitions = [];
-
     if (TOKEN) {
       const data = await footballApi("/competitions");
-
       competitions = (data.competitions || [])
         .map(function (competition) {
           return {
@@ -95,21 +195,19 @@ app.get("/api/competitions", async function (_req, res) {
           return Boolean(competition.code);
         });
     }
-
     if (
       !competitions.some(function (competition) {
         return competition.code === "TSL";
       })
     ) {
       competitions.push({
-        id: 4339,
+        id: SUPER_LEAGUE_ID,
         name: "Turkiye Super Ligi",
         code: "TSL",
         area: "Turkiye",
         currentSeason: "2026-2027"
       });
     }
-
     res.json(competitions);
   } catch (error) {
     res.status(error.status || 500).json({
@@ -117,70 +215,55 @@ app.get("/api/competitions", async function (_req, res) {
     });
   }
 });
-
 app.get("/api/matches", async function (req, res) {
   const code = String(req.query.competition || "");
-
   try {
     if (code === "TSL") {
-      const season = String(
-        req.query.season || "2026-2027"
-      );
-
-      if (!/^\d{4}-\d{4}$/.test(season)) {
+      const season = req.query.season
+        ? String(req.query.season)
+        : null;
+      if (season && !/^\d{4}-\d{4}$/.test(season)) {
         return res.status(400).json({
           error: "Sezon formati hatali. Ornek: 2026-2027"
         });
       }
-
-      const data = await sportsDbApi(
-        "/eventsseason.php?id=4339&s=" +
-        encodeURIComponent(season)
-      );
-
-      const matches = (data.events || []).map(function (match) {
-        return {
-          id: match.idEvent,
-          date: match.strTimestamp || match.dateEvent,
-          status: match.strStatus || "SCHEDULED",
-          home: match.strHomeTeam,
-          away: match.strAwayTeam,
-          homeId: match.idHomeTeam,
-          awayId: match.idAwayTeam,
-          homeGoals:
-            match.intHomeScore == null
-              ? null
-              : Number(match.intHomeScore),
-          awayGoals:
-            match.intAwayScore == null
-              ? null
-              : Number(match.intAwayScore)
-        };
-      });
-
-      return res.json({
-        competition: "Turkiye Super Ligi",
-        season: season,
-        matches: matches,
-        source: "TheSportsDB",
-        warning: matches.length === 0
-          ? "Bu sezon icin mac verisi bulunamadi."
-          : "Ucretsiz veri kaynaginda eksik maclar olabilir."
-      });
+      if (season) {
+        const data = await sportsDbApi(
+          "/eventsseason.php?id=" +
+          SUPER_LEAGUE_ID +
+          "&s=" +
+          encodeURIComponent(season)
+        );
+        const matches = (data.events || []).map(function (match) {
+          return normalizeSuperLeagueMatch(match, season);
+        });
+        return res.json({
+          competition: "Turkiye Super Ligi",
+          season: season,
+          matches: matches,
+          source: "TheSportsDB",
+          warning: matches.length === 0
+            ? "Bu sezon icin mac verisi bulunamadi."
+            : "Veri kaynaginda eksik maclar olabilir."
+        });
+      }
+      return res.json(await getSuperLeagueMatches());
     }
-
     if (!/^[A-Z0-9]{2,5}$/.test(code)) {
       return res.status(400).json({
         error: "Gecerli bir lig kodu secin."
       });
     }
-
+    const cacheKey = "competition-" + code;
+    const existing = cached(cacheKey);
+    if (existing) {
+      return res.json(existing);
+    }
     const data = await footballApi(
       "/competitions/" +
       encodeURIComponent(code) +
       "/matches"
     );
-
     const matches = (data.matches || []).map(function (match) {
       return {
         id: match.id,
@@ -208,26 +291,25 @@ app.get("/api/matches", async function (req, res) {
             : null
       };
     });
-
-    res.json({
+    const result = {
       competition: data.competition
         ? data.competition.name
         : code,
       matches: matches
-    });
+    };
+    saveCache(cacheKey, result);
+    res.json(result);
   } catch (error) {
     res.status(error.status || 500).json({
       error: error.message
     });
   }
 });
-
 app.get("/api/health", function (_req, res) {
   res.json({
     ok: true
   });
 });
-
 app.listen(PORT, function () {
   console.log(
     "Futbol Analiz Merkezi " +
