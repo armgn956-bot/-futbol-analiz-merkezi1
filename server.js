@@ -5,27 +5,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.FOOTBALL_DATA_TOKEN;
 
-const SPORTSDB_URL =
-“https://www.thesportsdb.com/api/v1/json/123”;
+const SPORTSDB_URL = “https://www.thesportsdb.com/api/v1/json/123”;
 
 app.use(express.static(path.join(__dirname, “public”)));
 app.use(express.json());
 
 async function footballApi(pathname) {
 if (!TOKEN) {
-const e = new Error(
-“Canlı veri anahtarı ayarlanmamış. Render ortamındaki FOOTBALL_DATA_TOKEN ayarını kontrol edin.”
-);
+const e = new Error(“Canlı veri anahtarı ayarlanmamış. Render ortamındaki FOOTBALL_DATA_TOKEN ayarını kontrol edin.”);
 e.status = 503;
 throw e;
 }
 
-const r = await fetch(
-“https://api.football-data.org/v4” + pathname,
-{
+const r = await fetch(“https://api.football-data.org/v4” + pathname, {
 headers: { “X-Auth-Token”: TOKEN }
-}
-);
+});
 
 if (!r.ok) {
 const messages = {
@@ -34,10 +28,7 @@ const messages = {
 429: “API istek sınırına ulaşıldı. Biraz bekleyip tekrar deneyin.”
 };
 
-const e = new Error(
-  messages[r.status] ||
-  ("Veri sağlayıcısı hata döndürdü (" + r.status + ").")
-);
+const e = new Error(messages[r.status] || ("Veri sağlayıcısı hata döndürdü (" + r.status + ")."));
 e.status = r.status;
 throw e;
 
@@ -50,9 +41,7 @@ async function sportsDbApi(pathname) {
 const r = await fetch(SPORTSDB_URL + pathname);
 
 if (!r.ok) {
-const e = new Error(
-“Süper Lig veri kaynağı hata döndürdü (” + r.status + “).”
-);
+const e = new Error(“Süper Lig veri kaynağı hata döndürdü (” + r.status + “).”);
 e.status = r.status;
 throw e;
 }
@@ -84,10 +73,7 @@ if (TOKEN) {
     }))
     .filter(c => c.code);
 }
-const hasSuperLig = competitions.some(
-  c => c.code === "TSL"
-);
-if (!hasSuperLig) {
+if (!competitions.some(c => c.code === "TSL")) {
   competitions.push({
     id: 4339,
     name: "Türkiye Süper Ligi",
@@ -99,9 +85,7 @@ if (!hasSuperLig) {
 res.json(competitions);
 
 } catch (e) {
-res.status(e.status || 500).json({
-error: e.message
-});
+res.status(e.status || 500).json({ error: e.message });
 }
 });
 
@@ -110,9 +94,7 @@ const code = String(req.query.competition || “”);
 
 try {
 if (code === “TSL”) {
-const season = String(
-req.query.season || “2026-2027”
-);
+const season = String(req.query.season || “2026-2027”);
 
   if (!/^\d{4}-\d{4}$/.test(season)) {
     return res.status(400).json({
@@ -120,8 +102,7 @@ req.query.season || “2026-2027”
     });
   }
   const d = await sportsDbApi(
-    "/eventsseason.php?id=4339&s=" +
-    encodeURIComponent(season)
+    "/eventsseason.php?id=4339&s=" + encodeURIComponent(season)
   );
   const matches = (d.events || []).map(m => ({
     id: m.idEvent,
@@ -131,16 +112,8 @@ req.query.season || “2026-2027”
     away: m.strAwayTeam,
     homeId: m.idHomeTeam,
     awayId: m.idAwayTeam,
-    homeGoals:
-      m.intHomeScore === null ||
-      m.intHomeScore === undefined
-        ? null
-        : Number(m.intHomeScore),
-    awayGoals:
-      m.intAwayScore === null ||
-      m.intAwayScore === undefined
-        ? null
-        : Number(m.intAwayScore)
+    homeGoals: m.intHomeScore == null ? null : Number(m.intHomeScore),
+    awayGoals: m.intAwayScore == null ? null : Number(m.intAwayScore)
   }));
   return res.json({
     competition: "Türkiye Süper Ligi",
@@ -148,19 +121,15 @@ req.query.season || “2026-2027”
     matches,
     source: "TheSportsDB",
     warning: matches.length === 0
-      ? "Bu sezon için maç verisi gelmedi. API kapsamı veya sezon kaydı kontrol edilmeli."
+      ? "Bu sezon için maç verisi gelmedi. Sezon kaydı veya API kapsamı kontrol edilmeli."
       : "Ücretsiz veri kaynağında maç kapsamı sınırlı olabilir."
   });
 }
 if (!/^[A-Z0-9]{2,5}$/.test(code)) {
-  return res.status(400).json({
-    error: "Geçerli bir lig kodu seçin."
-  });
+  return res.status(400).json({ error: "Geçerli bir lig kodu seçin." });
 }
 const d = await footballApi(
-  "/competitions/" +
-  encodeURIComponent(code) +
-  "/matches"
+  "/competitions/" + encodeURIComponent(code) + "/matches"
 );
 const matches = (d.matches || []).map(m => ({
   id: m.id,
@@ -173,26 +142,15 @@ const matches = (d.matches || []).map(m => ({
   homeGoals: m.score?.fullTime?.home,
   awayGoals: m.score?.fullTime?.away
 }));
-res.json({
-  competition: d.competition?.name || code,
-  matches
-});
+res.json({ competition: d.competition?.name || code, matches });
 
 } catch (e) {
-res.status(e.status || 500).json({
-error: e.message
-});
+res.status(e.status || 500).json({ error: e.message });
 }
 });
 
-app.get(”/api/health”, (_req, res) => {
-res.json({ ok: true });
-});
+app.get(”/api/health”, (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {
-console.log(
-“Futbol Analiz Merkezi “ +
-PORT +
-“ portunda çalışıyor.”
-);
+console.log(“Futbol Analiz Merkezi “ + PORT + “ portunda çalışıyor.”);
 });
