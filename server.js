@@ -426,12 +426,6 @@ app.get("/api/health", function (_req, res) {
     ok: true
   });
 });
-app.get("/api/1lig/fixtures", async function (_req, res) {
-  try {
-    if (!THESTATSAPI_KEY) {
-      return res.status(500).json({
-        error: "THESTATSAPI_KEY bulunamadı."
-      });
     }
     let allMatches = [];
     let page = 1;
