@@ -490,12 +490,6 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
   }
 });
 app.listen(PORT, function () {
-  console.log(
-    "Futbol Analiz Merkezi " +
-    PORT +
-    " portunda calisiyor."
-  );
-});
 app.get("/api/1lig/fixtures", async function (_req, res) {
   try {
     if (!THESTATSAPI_KEY) {
@@ -503,29 +497,42 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
         error: "THESTATSAPI_KEY bulunamadı."
       });
     }
-    const url = new URL(
-      "https://api.thestatsapi.com/api/football/matches"
-    );
-    url.searchParams.set("competition_id", "comp_8448");
-    url.searchParams.set("per_page", "100");
-    url.searchParams.set("page", "1");
-    const response = await fetch(url, {
-      headers: {
-        Authorization: "Bearer " + THESTATSAPI_KEY,
-        Accept: "application/json"
-      }
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: "TheStatsAPI isteği başarısız oldu.",
-        status: response.status,
-        details: typeof data === "object"
-          ? JSON.stringify(data).slice(0, 500)
-          : String(data).slice(0, 500)
+
+    let allMatches = [];
+    let page = 1;
+    let totalPages = 1;
+
+    do {
+      const url = new URL(
+        "https://api.thestatsapi.com/api/football/matches"
+      );
+
+      url.searchParams.set("competition_id", "comp_8448");
+      url.searchParams.set("per_page", "100");
+      url.searchParams.set("page", String(page));
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: "Bearer " + THESTATSAPI_KEY,
+          Accept: "application/json"
+        }
       });
-    }
-    const matches = (data.data || []).map(function (match) {
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: "TheStatsAPI isteği başarısız oldu.",
+          status: response.status
+        });
+      }
+
+      allMatches = allMatches.concat(data.data || []);
+      totalPages = Number(data.meta?.total_pages || 1);
+      page++;
+    } while (page <= totalPages && page <= 20);
+
+    const matches = allMatches.map(function (match) {
       return {
         id: match.id,
         date: match.utc_date || match.date || null,
@@ -536,13 +543,16 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
         awayGoals: match.score?.away ?? match.away_team?.score ?? null
       };
     });
+
     matches.sort(function (a, b) {
       return new Date(a.date || 0) - new Date(b.date || 0);
     });
+
     res.json({
       competition: "Türkiye 1. Lig",
       matches: matches,
-      pagination: data.meta || null
+      totalMatches: matches.length,
+      pagesFetched: page - 1
     });
   } catch (error) {
     console.error("1. Lig API hatası:", error.message);
@@ -552,6 +562,10 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
   }
 });
 
-
-
-
+app.listen(PORT, function () {
+  console.log(
+    "Futbol Analiz Merkezi " +
+    PORT +
+    " portunda calisiyor."
+  );
+});
