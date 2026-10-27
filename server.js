@@ -3,6 +3,7 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.FOOTBALL_DATA_TOKEN;
+const TFF_API_KEY = process.env.TFF_API_KEY;
 const SPORTSDB_URL = "https://www.thesportsdb.com/api/v1/json/123";
 const SUPER_LEAGUE_ID = 4339;
 const SUPER_LEAGUE_SEASONS = [
