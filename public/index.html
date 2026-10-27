@@ -522,17 +522,6 @@ async function init() {
     showError($('status'), e.message);
   }
 }
-function escapeText(value) {
-return String(value).replace(/[&<>”’]/g, function (char) {
-return {
-‘&’: ‘&’,
-‘<’: ‘<’,
-‘>’: ‘>’,
-‘”’: ‘"’,
-“’”: ‘'’
-}[char];
-});
-}
 // Süper Lig fikstürünü yükle
 document.getElementById('loadFixtures').addEventListener('click', async function () {
   const panel = document.getElementById('fixturesPanel');
