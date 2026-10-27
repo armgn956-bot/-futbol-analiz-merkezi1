@@ -426,6 +426,65 @@ app.get("/api/health", function (_req, res) {
     ok: true
   });
 });
+app.get("/api/1lig/fixtures", async function (_req, res) {
+  try {
+    if (!THESTATSAPI_KEY) {
+      return res.status(500).json({
+        error: "THESTATSAPI_KEY bulunamadı."
+      });
+    }
+    let allMatches = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const url = new URL(
+        "https://api.thestatsapi.com/api/football/matches"
+      );
+      url.searchParams.set("competition_id", "comp_8448");
+      url.searchParams.set("per_page", "100");
+      url.searchParams.set("page", String(page));
+      const response = await fetch(url, {
+        headers: {
+          Authorization: "Bearer " + THESTATSAPI_KEY,
+          Accept: "application/json"
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: "TheStatsAPI isteği başarısız oldu."
+        });
+      }
+      allMatches = allMatches.concat(data.data || []);
+      totalPages = Number(data.meta?.total_pages || 1);
+      page++;
+    } while (page <= totalPages && page <= 20);
+    const matches = allMatches.map(function (match) {
+      return {
+        id: match.id,
+        date: match.utc_date || match.date || null,
+        status: match.status || null,
+        home: match.home_team?.name || null,
+        away: match.away_team?.name || null,
+        homeGoals: match.score?.home ?? match.home_team?.score ?? null,
+        awayGoals: match.score?.away ?? match.away_team?.score ?? null
+      };
+    });
+    matches.sort(function (a, b) {
+      return new Date(a.date || 0) - new Date(b.date || 0);
+    });
+    res.json({
+      competition: "Türkiye 1. Lig",
+      matches: matches,
+      totalMatches: matches.length,
+      pagesFetched: page - 1
+    });
+  } catch (_error) {
+    res.status(502).json({
+      error: "Türkiye 1. Lig verileri alınamadı."
+    });
+  }
+});
 app.listen(PORT, function () {
   console.log(
     "Futbol Analiz Merkezi " +
