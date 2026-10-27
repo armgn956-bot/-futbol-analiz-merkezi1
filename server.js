@@ -217,8 +217,6 @@ app.get("/api/competitions", async function (_req, res) {
     });
   }
 });
-  }
-});
 app.get("/api/matches", async function (req, res) {
   const code = String(req.query.competition || "");
   try {
