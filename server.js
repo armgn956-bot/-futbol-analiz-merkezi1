@@ -306,6 +306,63 @@ app.get("/api/matches", async function (req, res) {
     });
   }
 });
+async function tffApi(type, week) {
+  if (!TFF_API_KEY) {
+    throw new Error("TFF_API_KEY Render ortam değişkeninde bulunamadı.");
+  }
+
+  const params = new URLSearchParams({
+    apikey: TFF_API_KEY,
+    tip: type
+  });
+
+  if (type === "fiktur" && week) {
+    params.set("hafta", String(week));
+  }
+
+  const response = await fetch(
+    "https://tff.kkerem.com/?" + params.toString()
+  );
+
+  if (!response.ok) {
+    throw new Error("TFF API HTTP hatası: " + response.status);
+  }
+
+  return response.json();
+}
+
+app.get("/api/tsl/fixtures", async function (req, res) {
+  try {
+    const week = req.query.hafta
+      ? Number(req.query.hafta)
+      : null;
+
+    if (week !== null &&
+        (!Number.isInteger(week) || week < 1 || week > 34)) {
+      return res.status(400).json({
+        error: "Hafta 1 ile 34 arasında olmalıdır."
+      });
+    }
+
+    const data = await tffApi("fiktur", week);
+    res.json(data);
+  } catch (error) {
+    res.status(502).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/tsl/standings", async function (_req, res) {
+  try {
+    const data = await tffApi("puan");
+    res.json(data);
+  } catch (error) {
+    res.status(502).json({
+      error: error.message
+    });
+  }
+});
 app.get("/api/health", function (_req, res) {
   res.json({
     ok: true
