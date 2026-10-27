@@ -522,6 +522,140 @@ async function init() {
     showError($('status'), e.message);
   }
 }
+function escapeText(value) {
+return String(value).replace(/[&<>”’]/g, function (char) {
+return {
+‘&’: ‘&’,
+‘<’: ‘<’,
+‘>’: ‘>’,
+‘”’: ‘"’,
+“’”: ‘'’
+}[char];
+});
+}
+// Süper Lig fikstürünü yükle
+document.getElementById('loadFixtures').addEventListener('click', async function () {
+  const panel = document.getElementById('fixturesPanel');
+  panel.textContent = 'Fikstür yükleniyor...';
+
+  try {
+    const data = await getJSON('/api/tsl/fixtures');
+    const matches = Array.isArray(data.maclar) ? data.maclar : [];
+
+    if (matches.length === 0) {
+      panel.textContent = 'Bu hafta için fikstür bulunamadı.';
+      return;
+    }
+
+    const rows = matches.map(function (match) {
+      const dateParts = (match.tarih || '').split('.');
+      const date = dateParts.length === 3
+        ? dateParts[0] + '.' + dateParts[1] + '.' + dateParts[2]
+        : 'Tarih belirtilmemiş';
+
+      const home = escapeText(match.ev_sahibi || 'Ev sahibi bilinmiyor');
+      const away = escapeText(match.deplasman || 'Deplasman bilinmiyor');
+      const time = escapeText(match.saat || '');
+      const score = match.skor
+        ? escapeText(match.skor)
+        : 'Oynanacak';
+
+      return `
+        <div style="padding:12px 0;border-bottom:1px solid #333">
+          <div class="muted">${escapeText(date)} ${time ? ' • ' + time : ''}</div>
+          <strong>${home}</strong>
+          <span> – </span>
+          <strong>${away}</strong>
+          <div style="margin-top:5px">${score}</div>
+        </div>
+      `;
+    }).join('');
+
+    panel.innerHTML = `
+      <p class="muted">${Number(data.hafta) || ''}. hafta • ${matches.length} maç</p>
+      ${rows}
+    `;
+  } catch (error) {
+    panel.textContent = 'Fikstür yüklenemedi: ' + error.message;
+  }
+});
+
+// Süper Lig puan cetvelini yükle
+document.getElementById('loadStandings').addEventListener('click', async function () {
+  const panel = document.getElementById('standingsPanel');
+  panel.textContent = 'Puan cetveli yükleniyor...';
+
+  try {
+    const data = await getJSON('/api/tsl/standings');
+
+    // API yanıtındaki olası takım listelerini bul
+    const candidates = [
+      data.puan_durumu,
+      data.puan,
+      data.takimlar,
+      data.siralama,
+      data.tabla,
+      data.standings,
+      data.data
+    ];
+
+    const teams = candidates.find(Array.isArray);
+
+    if (!teams || teams.length === 0) {
+      panel.textContent =
+        'Puan cetveli API’den geldi ancak tablo biçimi henüz tanınmadı. ' +
+        'JSON yanıtını kontrol etmemiz gerekiyor.';
+      console.log('TFF puan cetveli yanıtı:', data);
+      return;
+    }
+
+    const rows = teams.map(function (team, index) {
+      const name = team.takim || team.takim_adi ||
+        team.ad || team.team || team.name || 'Takım';
+
+      const played = team.oynanan ?? team.oynanan_mac ??
+        team.played ?? '-';
+
+      const points = team.puan ?? team.points ?? '-';
+      const wins = team.galibiyet ?? team.g ?? team.wins ?? '-';
+      const draws = team.beraberlik ?? team.b ?? team.draws ?? '-';
+      const losses = team.maglubiyet ?? team.m ?? team.losses ?? '-';
+
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeText(String(name))}</td>
+          <td>${escapeText(String(played))}</td>
+          <td>${escapeText(String(wins))}</td>
+          <td>${escapeText(String(draws))}</td>
+          <td>${escapeText(String(losses))}</td>
+          <td><strong>${escapeText(String(points))}</strong></td>
+        </tr>
+      `;
+    }).join('');
+
+    panel.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;text-align:left">
+          <thead>
+            <tr>
+              <th>Sıra</th>
+              <th>Takım</th>
+              <th>O</th>
+              <th>G</th>
+              <th>B</th>
+              <th>M</th>
+              <th>P</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  } catch (error) {
+    panel.textContent = 'Puan cetveli yüklenemedi: ' + error.message;
+  }
+});
 init();
 </script>
 </body>
