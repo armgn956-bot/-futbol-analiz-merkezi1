@@ -574,57 +574,36 @@ document.getElementById('loadFixtures').addEventListener('click', async function
 document.getElementById('loadStandings').addEventListener('click', async function () {
   const panel = document.getElementById('standingsPanel');
   panel.textContent = 'Puan cetveli yükleniyor...';
-
   try {
     const data = await getJSON('/api/tsl/standings');
-
-    // API yanıtındaki olası takım listelerini bul
-    const candidates = [
-      data.puan_durumu,
-      data.puan,
-      data.takimlar,
-      data.siralama,
-      data.tabla,
-      data.standings,
-      data.data
-    ];
-
-    const teams = candidates.find(Array.isArray);
-
-    if (!teams || teams.length === 0) {
-      panel.textContent =
-        'Puan cetveli API’den geldi ancak tablo biçimi henüz tanınmadı. ' +
-        'JSON yanıtını kontrol etmemiz gerekiyor.';
+    // TFF API'sindeki doğru alan
+    const teams = data.puan_cetveli;
+    if (!Array.isArray(teams) || teams.length === 0) {
+      panel.textContent = 'Puan cetveli verisi bulunamadı.';
       console.log('TFF puan cetveli yanıtı:', data);
       return;
     }
-
-    const rows = teams.map(function (team, index) {
-      const name = team.takim || team.takim_adi ||
-        team.ad || team.team || team.name || 'Takım';
-
-      const played = team.oynanan ?? team.oynanan_mac ??
-        team.played ?? '-';
-
-      const points = team.puan ?? team.points ?? '-';
-      const wins = team.galibiyet ?? team.g ?? team.wins ?? '-';
-      const draws = team.beraberlik ?? team.b ?? team.draws ?? '-';
-      const losses = team.maglubiyet ?? team.m ?? team.losses ?? '-';
-
+    const rows = teams.map(function (team) {
       return `
         <tr>
-          <td>${index + 1}</td>
-          <td>${escapeText(String(name))}</td>
-          <td>${escapeText(String(played))}</td>
-          <td>${escapeText(String(wins))}</td>
-          <td>${escapeText(String(draws))}</td>
-          <td>${escapeText(String(losses))}</td>
-          <td><strong>${escapeText(String(points))}</strong></td>
+          <td>${escapeText(String(team.sira ?? '-'))}</td>
+          <td>${escapeText(String(team.takim ?? 'Bilinmeyen takım'))}</td>
+          <td>${escapeText(String(team.oynan ?? '-'))}</td>
+          <td>${escapeText(String(team.galibiyet ?? '-'))}</td>
+          <td>${escapeText(String(team.beraberlik ?? '-'))}</td>
+          <td>${escapeText(String(team.maglubiyet ?? '-'))}</td>
+          <td>${escapeText(String(team.atilan ?? '-'))}</td>
+          <td>${escapeText(String(team.yenilen ?? '-'))}</td>
+          <td>${escapeText(String(team.averaj ?? '-'))}</td>
+          <td><strong>${escapeText(String(team.puan ?? '-'))}</strong></td>
         </tr>
       `;
     }).join('');
-
     panel.innerHTML = `
+      <p class="muted">
+        Güncelleme: ${escapeText(String(data.guncellendi ?? 'Bilinmiyor'))}
+        · Hafta: ${escapeText(String(data.hafta ?? '-'))}
+      </p>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;text-align:left">
           <thead>
@@ -635,6 +614,9 @@ document.getElementById('loadStandings').addEventListener('click', async functio
               <th>G</th>
               <th>B</th>
               <th>M</th>
+              <th>AG</th>
+              <th>YG</th>
+              <th>AV</th>
               <th>P</th>
             </tr>
           </thead>
