@@ -410,7 +410,9 @@ app.get("/api/tsl/fixtures", async function (req, res) {
     });
   }
 });
-
+app.get("/api/health", function (_req, res) {
+  res.json({ ok: true });
+});
 app.get("/api/tsl/standings", async function (_req, res) {
   try {
     const data = await tffApi("puan");
