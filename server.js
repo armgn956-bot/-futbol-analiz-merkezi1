@@ -451,9 +451,13 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
       });
       const data = await response.json();
       if (!response.ok) {
-        return res.status(response.status).json({
-          error: "TheStatsAPI isteği başarısız oldu."
-        });
+      if (!response.ok) {
+  const errorText = await response.text();
+  return res.status(response.status).json({
+    error: "TheStatsAPI isteği başarısız oldu.",
+    status: response.status,
+    details: errorText.slice(0, 500)
+  });
       }
       allMatches = allMatches.concat(data.data || []);
       totalPages = Number(data.meta?.total_pages || 1);
