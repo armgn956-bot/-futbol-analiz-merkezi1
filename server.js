@@ -490,10 +490,3 @@ app.listen(PORT, function () {
     " portunda calisiyor."
   );
 });
-app.listen(PORT, function () {
-  console.log(
-    "Futbol Analiz Merkezi " +
-    PORT +
-    " portunda calisiyor."
-  );
-});
