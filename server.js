@@ -508,6 +508,7 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
     );
     url.searchParams.set("competition_id", "comp_8448");
     url.searchParams.set("per_page", "100");
+    url.searchParams.set("page", "1");
     const response = await fetch(url, {
       headers: {
         Authorization: "Bearer " + THESTATSAPI_KEY,
@@ -517,7 +518,11 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
     const data = await response.json();
     if (!response.ok) {
       return res.status(response.status).json({
-        error: "TheStatsAPI isteği başarısız oldu."
+        error: "TheStatsAPI isteği başarısız oldu.",
+        status: response.status,
+        details: typeof data === "object"
+          ? JSON.stringify(data).slice(0, 500)
+          : String(data).slice(0, 500)
       });
     }
     const matches = (data.data || []).map(function (match) {
@@ -525,11 +530,14 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
         id: match.id,
         date: match.utc_date || match.date || null,
         status: match.status || null,
-        home: match.home_team ? match.home_team.name : null,
-        away: match.away_team ? match.away_team.name : null,
+        home: match.home_team?.name || null,
+        away: match.away_team?.name || null,
         homeGoals: match.score?.home ?? match.home_team?.score ?? null,
         awayGoals: match.score?.away ?? match.away_team?.score ?? null
       };
+    });
+    matches.sort(function (a, b) {
+      return new Date(a.date || 0) - new Date(b.date || 0);
     });
     res.json({
       competition: "Türkiye 1. Lig",
@@ -537,8 +545,13 @@ app.get("/api/1lig/fixtures", async function (_req, res) {
       pagination: data.meta || null
     });
   } catch (error) {
+    console.error("1. Lig API hatası:", error.message);
     res.status(502).json({
       error: "Türkiye 1. Lig verileri alınamadı."
     });
   }
 });
+
+
+
+
