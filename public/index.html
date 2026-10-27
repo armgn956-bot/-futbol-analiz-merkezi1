@@ -56,6 +56,22 @@ footer{text-align:center;padding:22px;color:var(--muted);font-size:12px}
     <div id="status" class="status">Bağlantı kontrol ediliyor...</div>
   </section>
   <section class="card">
+  <h2>📅 Süper Lig Fikstürü</h2>
+  <p class="muted">TFF veri sağlayıcısından alınan maç programı.</p>
+  <button id="loadFixtures">Fikstürü yükle</button>
+  <div id="fixturesPanel" style="margin-top:15px">
+    Henüz fikstür yüklenmedi.
+  </div>
+</section>
+
+<section class="card">
+  <h2>🏆 Süper Lig Puan Cetveli</h2>
+  <button id="loadStandings">Puan cetvelini yükle</button>
+  <div id="standingsPanel" style="margin-top:15px">
+    Henüz puan cetveli yüklenmedi.
+  </div>
+</section>
+  <section class="card">
     <h2>1. Lig ve maç seçimi</h2>
     <label for="league">Lig</label>
     <select id="league"><option value="">Ligler yükleniyor...</option></select>
