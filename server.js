@@ -217,61 +217,6 @@ app.get("/api/competitions", async function (_req, res) {
     });
   }
 });
-app.get("/api/1lig/fixtures", async function (_req, res) {
-  try {
-    if (!THESTATSAPI_KEY) {
-      return res.status(500).json({
-        error: "THESTATSAPI_KEY bulunamadı."
-      });
-    }
-
-    const url = new URL(
-      "https://api.thestatsapi.com/api/football/matches"
-    );
-
-    url.searchParams.set("competition_id", "comp_8448");
-    url.searchParams.set("per_page", "100");
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: "Bearer " + THESTATSAPI_KEY,
-        Accept: "application/json"
-      }
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: "TheStatsAPI isteği başarısız oldu."
-      });
-    }
-
-    const matches = (data.data || []).map(function (match) {
-      return {
-        id: match.id,
-        date: match.utc_date,
-        status: match.status,
-        home: match.home_team ? match.home_team.name : null,
-        away: match.away_team ? match.away_team.name : null,
-        homeGoals: match.home_team
-          ? match.home_team.score
-          : null,
-        awayGoals: match.away_team
-          ? match.away_team.score
-          : null
-      };
-    });
-
-    res.json({
-      competition: "Türkiye 1. Lig",
-      matches: matches,
-      pagination: data.meta || null
-    });
-  } catch (_error) {
-    res.status(502).json({
-      error: "Türkiye 1. Lig verileri alınamadı."
-    });
   }
 });
 app.get("/api/matches", async function (req, res) {
